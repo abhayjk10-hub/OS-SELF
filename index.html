@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f1e9">
+  <meta name="description" content="Explore eight CPU scheduling algorithms, simulate process queues, compare performance, and export operating-systems experiments.">
+  <title>Kernel Lab — CPU Scheduling Simulator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Kernel Lab home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>kernel<span class="brand-dot">.</span></strong><small>THE OS LEARNING LAB</small></span>
+      </a>
+      <nav class="top-nav" aria-label="Main navigation">
+        <a href="#simulator">The simulator</a>
+        <a href="#resultsSection">Your results</a>
+        <a href="#learningNotes">Learning notes</a>
+      </nav>
+      <a class="header-status" href="#simulator"><span class="status-dot"></span> LAB IS READY <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="pageTitle">
+        <div class="hero-copy-block">
+          <p class="eyebrow"><span class="eyebrow-line"></span> OPERATING SYSTEMS, MADE VISIBLE</p>
+          <h1 id="pageTitle">Every process<br>gets its <em>moment.</em></h1>
+          <p class="hero-copy">Investigate eight CPU scheduling policies. Design a workload, inspect every dispatch, quantify performance trade-offs, and export a reproducible experiment.</p>
+          <div class="hero-actions">
+            <a class="button button-primary hero-cta" href="#simulator">Start exploring <span aria-hidden="true">↘</span></a>
+            <a class="hero-text-link" href="#learningNotes">A quick tour <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="hero-meta"><span class="meta-avatars" aria-hidden="true"><i>K</i><i>A</i></span><span>Interactive OS laboratory</span><span class="meta-divider"></span><span>8 algorithms · measurable trade-offs</span></div>
+        </div>
+        <div class="hero-art">
+          <svg class="hero-art-image" viewBox="0 0 800 520" role="img" aria-label="Illustrated circuit board representing CPU scheduling" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="boardGlow" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#567563"/><stop offset="1" stop-color="#172522"/></linearGradient>
+              <pattern id="boardGrid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#b3c3a9" stroke-opacity=".16"/></pattern>
+            </defs>
+            <rect width="800" height="520" fill="url(#boardGlow)"/>
+            <rect width="800" height="520" fill="url(#boardGrid)"/>
+            <g fill="none" stroke="#b4cbb2" stroke-opacity=".62" stroke-width="2">
+              <path d="M0 112h155v58h107m276 180h92v-77h170M0 390h118v-92h118m252-298v110h94v70h118M120 0v68h96v36m288 416v-62h-86v-42H306"/>
+              <path d="M0 236h86v56h78m386-292v86h-76v50h-92M800 430h-93v-42h-85m-272-5v-67h-84"/>
+              <rect x="292" y="157" width="216" height="206" rx="17" stroke-opacity=".42"/>
+              <path d="M272 188h20m216 0h20M272 226h20m216 0h20M272 264h20m216 0h20M272 302h20m216 0h20M272 340h20m216 0h20"/>
+            </g>
+            <g fill="#e9c77b">
+              <circle cx="155" cy="112" r="5"/><circle cx="262" cy="170" r="5"/><circle cx="530" cy="350" r="5"/>
+              <circle cx="700" cy="273" r="5"/><circle cx="118" cy="298" r="5"/><circle cx="600" cy="170" r="5"/>
+              <circle cx="216" cy="104" r="4"/><circle cx="456" cy="426" r="4"/>
+            </g>
+          </svg>
+          <div class="hero-art-shade"></div>
+          <div class="art-topline"><span><i></i> INSIDE THE KERNEL</span><span>01 — 05</span></div>
+          <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+          <div class="art-center-chip"><span class="chip-spark">✳</span><strong>CPU</strong><small>NOW SCHEDULING</small></div>
+          <div class="art-caption"><span class="caption-icon" aria-hidden="true">↗</span><span><strong>One processor.</strong><small>Many processes waiting for their turn.</small></span></div>
+          <div class="art-side-note">A LITTLE<br>ORDER IN<br>THE CHAOS</div>
+        </div>
+      </section>
+
+      <div class="learning-path" aria-label="How the simulator works">
+        <div class="path-intro"><span class="path-star" aria-hidden="true">✳</span><span>A hands-on OS lab</span></div>
+        <div class="path-step"><span>01</span><strong>Build a workload</strong><i aria-hidden="true">→</i></div>
+        <div class="path-step"><span>02</span><strong>Pick a scheduling rule</strong><i aria-hidden="true">→</i></div>
+        <div class="path-step"><span>03</span><strong>See what happens</strong><i aria-hidden="true">↗</i></div>
+      </div>
+
+      <section class="simulator-section" id="simulator" aria-label="Simulation setup">
+        <div class="section-intro-row">
+          <div><p class="section-kicker">THE INTERACTIVE PLAYGROUND</p><h2>Set the stage<span class="title-period">.</span></h2></div>
+          <p class="section-side-note">Every great schedule starts with a few processes<br>and a decision about who goes first.</p>
+        </div>
+
+        <div class="workspace-grid">
+          <article class="panel input-panel">
+            <div class="section-heading">
+              <div class="panel-title-group"><span class="step-number">01</span><div><p class="section-kicker">YOUR WORKLOAD</p><h3>Process inputs</h3></div></div>
+              <span class="process-count" id="processCount">0 processes</span>
+            </div>
+            <p class="section-intro">Arrival, burst, and priority use whole time units. A smaller priority number means a higher priority.</p>
+            <div class="scenario-picker" aria-label="Load a sample workload">
+              <span class="scenario-label">TRY A STARTER</span>
+              <button class="scenario-chip is-active" id="loadExampleButton" data-workload="priority" type="button" aria-pressed="true">Priority clash <span aria-hidden="true">↗</span></button>
+              <button class="scenario-chip" data-workload="idle" type="button" aria-pressed="false">Idle gaps</button>
+              <button class="scenario-chip" data-workload="roundRobin" type="button" aria-pressed="false">Round Robin</button>
+            </div>
+            <div class="table-wrap input-table-wrap">
+              <table class="data-table input-table">
+                <caption class="sr-only">Editable process arrival, burst, and priority values</caption>
+                <thead><tr><th scope="col">Process ID</th><th scope="col">Arrival time</th><th scope="col">Burst time</th><th scope="col">Priority</th></tr></thead>
+                <tbody id="processTableBody"></tbody>
+              </table>
+            </div>
+            <div class="input-actions">
+              <button class="button button-secondary" id="addProcessButton" type="button"><span aria-hidden="true">＋</span> Add process</button>
+              <button class="button button-quiet" id="removeProcessButton" type="button">Remove last</button>
+              <span class="action-divider"></span>
+              <button class="text-button danger-text" id="clearAllButton" type="button">Clear all</button>
+            </div>
+            <p class="validation-message" id="validationMessage" role="alert" aria-live="polite"></p>
+            <p class="table-footnote"><span aria-hidden="true">⌁</span> Tip: change any value to create your own scheduling puzzle.</p>
+          </article>
+
+          <aside class="panel control-panel" aria-labelledby="schedulingTitle">
+            <div class="control-topline"><span class="step-number step-number-light">02</span><span class="control-tag"><i></i> CONFIGURE</span></div>
+            <p class="section-kicker">CHOOSE YOUR RULE</p><h3 id="schedulingTitle">Who goes next?</h3>
+            <p class="control-intro">Pick an algorithm and tune its optional settings.</p>
+            <label class="field-label" for="algorithmSelect">Scheduling algorithm</label>
+            <select id="algorithmSelect">
+              <option value="preemptive">Preemptive Priority</option>
+              <option value="nonPreemptive">Non-Preemptive Priority</option>
+              <option value="fcfs">First Come, First Served</option>
+              <option value="sjf">Shortest Job First (SJF)</option>
+              <option value="srtf">Shortest Remaining Time First (SRTF)</option>
+              <option value="hrrn">Highest Response Ratio Next (HRRN)</option>
+              <option value="mlfq">Multilevel Feedback Queue (MLFQ)</option>
+              <option value="roundRobin">Round Robin</option>
+            </select>
+            <div class="settings-row" id="quantumSetting"><label for="timeQuantum">Time quantum (Round Robin)</label><input id="timeQuantum" type="number" min="1" step="1" value="2"><span class="setting-unit">units</span></div>
+            <p class="mlfq-hint hidden" id="mlfqHint">MLFQ uses three feedback levels with fixed quanta of 2, 4, and 8 time units. New work enters the highest-priority queue; CPU-bound work is gradually demoted.</p>
+            <label class="switch-row"><input id="contextSwitchEnabled" type="checkbox"><span class="switch-visual" aria-hidden="true"></span><span>Count context switching</span></label>
+            <div class="settings-row context-row" id="contextSwitchSetting"><label for="contextSwitchTime">Switch cost</label><input id="contextSwitchTime" type="number" min="0" step="1" value="1"><span class="setting-unit">units</span></div>
+            <p class="control-hint">Switch cost applies when the CPU moves directly between processes. Idle time does not count as a switch.</p>
+            <button class="button button-primary run-button" id="runButton" type="button"><span>Run this schedule</span><span class="run-arrow" aria-hidden="true">↗</span></button>
+            <button class="compare-button" id="compareButton" type="button"><span class="compare-icon" aria-hidden="true">⇄</span> Compare all 8 algorithms</button>
+            <button class="reset-button" id="resetButton" type="button">Reset results</button>
+          </aside>
+        </div>
+      </section>
+
+      <section class="results-section hidden" id="resultsSection" aria-live="polite">
+        <div class="section-heading results-heading"><div class="panel-title-group"><span class="step-number">03</span><div><p class="section-kicker">THE SCHEDULE, DECODED</p><h2 id="resultsTitle">Simulation results</h2></div></div><div class="results-heading-actions"><span class="algorithm-badge" id="algorithmBadge">Ready</span><button class="button button-secondary export-button" id="exportResultsButton" type="button">↓ <span>Export CSV</span></button></div></div>
+        <div class="panel chart-panel">
+          <div class="chart-title-row"><div><p class="section-kicker">CPU ACTIVITY</p><h3 id="chartTitle">CPU timeline</h3><p>Every block is a dispatch. Stripes mean the CPU is waiting.</p></div>
+            <div class="legend"><span><i class="legend-process"></i> Process</span><span><i class="legend-idle"></i> Idle</span><span><i class="legend-switch"></i> Switch</span></div>
+          </div>
+          <div class="gantt-container" id="ganttContainer"><div class="empty-state">Run a simulation to see the CPU timeline.</div></div>
+          <div class="playback-controls" aria-label="Timeline playback controls">
+            <span class="playback-time" id="playbackTime">t = —</span>
+            <button class="playback-button" id="previousBlockButton" type="button" aria-label="Previous timeline block" disabled>‹</button>
+            <button class="playback-button playback-toggle" id="playPauseButton" type="button" aria-label="Play schedule" disabled>▶</button>
+            <button class="playback-button" id="nextBlockButton" type="button" aria-label="Next timeline block" disabled>›</button>
+            <label class="sr-only" for="timelineSlider">Timeline playback position</label><input id="timelineSlider" type="range" min="0" max="0" value="0" disabled>
+            <label class="playback-speed-label" for="playbackSpeed">Playback</label><select id="playbackSpeed" aria-label="Playback speed"><option value="1100">1×</option><option value="600">2×</option><option value="250">4×</option></select>
+            <span class="playback-status" id="playbackStatus" aria-live="polite">Run a schedule to step through dispatches.</span>
+          </div>
+        </div>
+        <div class="metrics-grid" id="metricsGrid">
+          <div class="metric-card"><span>Average waiting time</span><strong id="averageWaiting">—</strong><small>time units</small></div>
+          <div class="metric-card"><span>Average turnaround time</span><strong id="averageTurnaround">—</strong><small>time units</small></div>
+          <div class="metric-card"><span>Average response time</span><strong id="averageResponse">—</strong><small>time units</small></div>
+          <div class="metric-card accent-metric"><span>CPU utilization</span><strong id="cpuUtilization">—</strong><small id="busyIdleLabel">Total simulation time —</small></div>
+          <div class="metric-card"><span>CPU busy time</span><strong id="cpuBusyTime">—</strong><small>time units</small></div>
+          <div class="metric-card"><span>CPU idle time</span><strong id="cpuIdleTime">—</strong><small>time units</small></div>
+          <div class="metric-card"><span>Throughput</span><strong id="throughput">—</strong><small>processes / time unit</small></div>
+          <div class="metric-card"><span>Context switches</span><strong id="contextSwitchCount">—</strong><small>process-to-process</small></div>
+        </div>
+        <div class="panel ready-panel"><div class="subsection-heading"><div><p class="section-kicker">BEHIND EACH DECISION</p><h3>Ready queue</h3></div><span class="formula-note">Watch processes join, wait, and get dispatched</span></div>
+          <div class="ready-current" id="readyQueueCurrent" aria-live="polite">Run the simulation to see ready-queue decisions.</div>
+          <ol class="ready-trace" id="readyQueueTrace"></ol>
+        </div>
+        <div class="panel performance-panel">
+          <div class="subsection-heading"><div><p class="section-kicker">PROCESS-BY-PROCESS</p><h3>Performance breakdown</h3></div><span class="formula-note">TAT = CT − AT · WT = TAT − BT · RT = first start − AT</span></div>
+          <div class="table-wrap"><table class="data-table performance-table"><caption class="sr-only">Calculated timing metrics for each process</caption><thead><tr><th scope="col">PID</th><th scope="col">AT</th><th scope="col">BT</th><th scope="col">Priority</th><th scope="col">CT</th><th scope="col">TAT</th><th scope="col">WT</th><th scope="col">RT</th><th scope="col">Response ratio</th></tr></thead><tbody id="performanceTableBody"></tbody></table></div>
+          <p class="averages-note" id="averagesNote"></p>
+        </div>
+        <div class="panel insight-panel" id="insightPanel" aria-live="polite"><div class="subsection-heading"><div><p class="section-kicker">EXPERIMENT INSIGHTS</p><h3>What the numbers tell you</h3></div><span class="formula-note">Derived from this workload and schedule</span></div><div class="insight-grid" id="insightGrid"></div></div>
+      </section>
+
+      <section class="comparison-section hidden" id="comparisonSection">
+        <div class="section-heading results-heading"><div class="panel-title-group"><span class="step-number">04</span><div><p class="section-kicker">SAME INPUT, DIFFERENT RULES</p><h2>Algorithm comparison</h2></div></div><button class="close-comparison" id="closeComparisonButton" type="button" aria-label="Close comparison">×</button></div>
+        <p class="comparison-note">All eight algorithms use the same validated processes and context-switch cost. Round Robin uses the configured quantum; MLFQ uses its fixed three-level quanta.</p>
+        <div class="comparison-charts" id="comparisonCharts"></div>
+        <div class="panel comparison-table-panel"><div class="subsection-heading"><div><p class="section-kicker">SIDE BY SIDE</p><h3>Performance dashboard</h3></div><span class="formula-note">Time values are in time units</span></div>
+          <div class="table-wrap"><table class="data-table comparison-table"><caption class="sr-only">Performance comparison for all eight scheduling algorithms</caption><thead><tr><th scope="col">Algorithm</th><th scope="col">Avg WT</th><th scope="col">Avg TAT</th><th scope="col">Avg RT</th><th scope="col">CPU utilization</th><th scope="col">Switch overhead</th><th scope="col">CPU idle</th><th scope="col">Throughput</th><th scope="col">Context switches</th></tr></thead><tbody id="comparisonTableBody"></tbody></table></div>
+        </div>
+      </section>
+
+      <section class="learning-section" id="learningNotes">
+        <div class="learning-heading"><p class="section-kicker">SCHEDULING FIELD GUIDE</p><h2>Eight ways to share<br>one processor<span class="title-period">.</span></h2><p>Same hardware, different philosophies. Explore each selection rule and the trade-offs it creates.</p>
+          <div class="selected-algorithm"><span>YOUR CURRENT PICK</span><h3 id="explanationTitle">How preemptive priority works</h3><p id="selectedAlgorithmExplanation">The CPU selects the ready process with the smallest priority number. It checks again at each arrival, allowing a higher-priority process to preempt the running process.</p></div>
+        </div>
+        <div class="algorithm-notes">
+          <article class="algorithm-note"><span>01</span><div><h3>Preemptive Priority</h3><p>The most important ready process takes over—even if another process is already running.</p><small>HIGH PRIORITY CAN INTERRUPT</small></div></article>
+          <article class="algorithm-note"><span>02</span><div><h3>Non-Preemptive Priority</h3><p>Choose the most important process, then let it finish before picking again.</p><small>FINISH WHAT YOU START</small></div></article>
+          <article class="algorithm-note"><span>03</span><div><h3>First Come, First Served</h3><p>Processes are handled in arrival order. Simple and fair, but a long job can hold up the line.</p><small>ARRIVAL ORDER WINS</small></div></article>
+          <article class="algorithm-note"><span>04</span><div><h3>Shortest Job First</h3><p>Give the CPU to the shortest waiting job. Efficient, but long jobs may have to wait.</p><small>SMALLEST BURST FIRST</small></div></article>
+          <article class="algorithm-note"><span>05</span><div><h3>Round Robin</h3><p>Give everyone a small turn, then move unfinished work to the back of the queue.</p><small>SHARE THE CPU IN TURNS</small></div></article>
+          <article class="algorithm-note"><span>06</span><div><h3>Shortest Remaining Time First</h3><p>Preempt the running process whenever a new arrival has less work remaining.</p><small>PREEMPTIVE SJF · LOW AVERAGE WAIT</small></div></article>
+          <article class="algorithm-note"><span>07</span><div><h3>Highest Response Ratio Next</h3><p>Choose the largest (waiting + service) / service ratio to balance short jobs and long-waiting jobs.</p><small>NON-PREEMPTIVE · STARVATION AWARE</small></div></article>
+          <article class="algorithm-note"><span>08</span><div><h3>Multilevel Feedback Queue</h3><p>New work starts at the top. Jobs that use their full time slice move to lower-priority queues with longer turns.</p><small>THREE QUEUES · 2 / 4 / 8 TIME UNITS</small></div></article>
+        </div>
+        <div class="formula-strip"><span class="formula-symbol" aria-hidden="true">ƒ</span><span><strong>Keep these close</strong><small>Turnaround = Completion − Arrival&nbsp;&nbsp; · &nbsp;&nbsp;Waiting = Turnaround − Burst&nbsp;&nbsp; · &nbsp;&nbsp;Response = First start − Arrival</small></span></div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span><strong>kernel<span class="brand-dot">.</span></strong><small>THE OS LEARNING LAB</small></span></a><p>Built with curiosity for Operating Systems.</p><p class="student-credits">Krishna Bhanushali · Roll No. 02 <span>✳</span> Abhay Kankaria · Roll No. 19</p><a class="back-to-top" href="#top">Back to top ↑</a></footer>
+  </div>
+  <script>
+  (function (simulator) {
+    simulator.algorithms = {
+      preemptive: { label: 'Preemptive Priority' },
+      nonPreemptive: { label: 'Non-Preemptive Priority' },
+      fcfs: { label: 'FCFS' },
+      sjf: { label: 'SJF' },
+      srtf: { label: 'Shortest Remaining Time First' },
+      hrrn: { label: 'Highest Response Ratio Next' },
+      mlfq: { label: 'Multilevel Feedback Queue' },
+      roundRobin: { label: 'Round Robin' }
+    };
+    simulator.exampleProcesses = [
+      { id: 'P1', arrival: 0, burst: 8, priority: 3 },
+      { id: 'P2', arrival: 1, burst: 4, priority: 1 },
+      { id: 'P3', arrival: 2, burst: 2, priority: 4 },
+      { id: 'P4', arrival: 3, burst: 5, priority: 2 }
+    ];
+    simulator.colors = ['#157a72', '#e9785b', '#dfad38', '#477ea0', '#986c9c', '#567b64', '#ce765d', '#3f8c88'];
+    simulator.escapeHtml = function (value) {
+      return String(value).replace(/[&<>'"]/g, function (character) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character];
+      });
+    };
+    simulator.formatNumber = function (number) {
+      return Number.isInteger(number) ? String(number) : number.toFixed(2);
+    };
+    simulator.calculateMetrics = function (processes, timeline, contextSwitches) {
+      var metrics = processes.map(function (process) {
+        var turnaround = process.completion - process.arrival;
+        return {
+          id: process.id, arrival: process.arrival, burst: process.burst, priority: process.priority,
+          completion: process.completion, turnaround: turnaround, waiting: turnaround - process.burst,
+          response: process.firstStart - process.arrival
+        };
+      });
+      var totalTime = timeline.length ? timeline[timeline.length - 1].end : 0;
+      var busyTime = metrics.reduce(function (sum, process) { return sum + process.burst; }, 0);
+      var idleTime = timeline.reduce(function (sum, block) { return sum + (block.type === 'idle' ? block.end - block.start : 0); }, 0);
+      var switchTime = timeline.reduce(function (sum, block) { return sum + (block.type === 'switch' ? block.end - block.start : 0); }, 0);
+      function average(field) {
+        return metrics.reduce(function (sum, process) { return sum + process[field]; }, 0) / metrics.length;
+      }
+      return {
+        metrics: metrics,
+        averages: { waiting: average('waiting'), turnaround: average('turnaround'), response: average('response') },
+        totalTime: totalTime, busyTime: busyTime, idleTime: idleTime,
+        utilization: totalTime ? busyTime / totalTime * 100 : 0,
+        switchTime: switchTime,
+        switchOverhead: totalTime ? switchTime / totalTime * 100 : 0,
+        throughput: totalTime ? metrics.length / totalTime : 0,
+        contextSwitches: contextSwitches
+      };
+    };
+    simulator.validateProcesses = function (rows) {
+      if (!rows.length) throw new Error('Add at least one process before running the simulation.');
+      var ids = new Set();
+      return rows.map(function (values, index) {
+        var id = String(values.id || '').trim();
+        var arrivalText = String(values.arrival).trim();
+        var burstText = String(values.burst).trim();
+        var priorityText = String(values.priority).trim();
+        var arrival = Number(arrivalText);
+        var burst = Number(burstText);
+        var priority = Number(priorityText);
+        if (!id || ids.has(id.toUpperCase())) throw new Error('Process ' + (index + 1) + ': IDs must be present and unique.');
+        if (!arrivalText || !Number.isInteger(arrival) || arrival < 0) throw new Error(id + ': arrival time must be a whole number of 0 or more.');
+        if (!burstText || !Number.isInteger(burst) || burst <= 0) throw new Error(id + ': burst time must be a whole number greater than 0.');
+        if (!priorityText || !Number.isInteger(priority) || priority <= 0) throw new Error(id + ': priority must be a positive whole number.');
+        ids.add(id.toUpperCase());
+        return { id: id, arrival: arrival, burst: burst, priority: priority, order: index };
+      });
+    };
+    simulator.validateSettings = function (algorithm, quantumText, contextEnabled, contextTimeText) {
+      var quantum = Number(quantumText);
+      var contextTime = Number(contextTimeText);
+      if (algorithm === 'roundRobin' && (!String(quantumText).trim() || !Number.isInteger(quantum) || quantum <= 0)) {
+        throw new Error('Time quantum must be a whole number greater than 0.');
+      }
+      if (contextEnabled && (!String(contextTimeText).trim() || !Number.isInteger(contextTime) || contextTime < 0)) {
+        throw new Error('Context switch time must be a whole number of 0 or more.');
+      }
+      return { quantum: quantum, contextTime: contextEnabled ? contextTime : 0 };
+    };
+    simulator.processInput = {
+      rows: [],
+      updateCount: function () {
+        var count = this.rows.length;
+        document.getElementById('processCount').textContent = count + ' process' + (count === 1 ? '' : 'es');
+      },
+      addRow: function (values) {
+        values = values || {};
+        var row = document.createElement('tr');
+        var id = values.id || 'P' + (this.rows.length + 1);
+        row.innerHTML =
+          '<td><input type="text" aria-label="Process ID" data-field="id" value="' + simulator.escapeHtml(id) + '"></td>' +
+          '<td><input type="number" min="0" step="1" aria-label="Arrival time" data-field="arrival" value="' + (values.arrival == null ? '' : values.arrival) + '"></td>' +
+          '<td><input type="number" min="1" step="1" aria-label="Burst time" data-field="burst" value="' + (values.burst == null ? '' : values.burst) + '"></td>' +
+          '<td><input type="number" min="1" step="1" aria-label="Priority" data-field="priority" value="' + (values.priority == null ? '' : values.priority) + '"></td>';
+        document.getElementById('processTableBody').appendChild(row);
+        this.rows.push(row);
+        this.updateCount();
+      },
+      clear: function () {
+        this.rows = [];
+        document.getElementById('processTableBody').innerHTML = '';
+        this.updateCount();
+      },
+      load: function (processes) {
+        this.clear();
+        processes.forEach(this.addRow.bind(this));
+      },
+      read: function () {
+        var values = this.rows.map(function (row) {
+          var fields = {};
+          row.querySelectorAll('input').forEach(function (input) { fields[input.dataset.field] = input.value; });
+          return fields;
+        });
+        return simulator.validateProcesses(values);
+      }
+    };
+    simulator.algorithmSelector = {
+      get: function () { return document.getElementById('algorithmSelect').value; },
+      settings: function (algorithm) {
+        return simulator.validateSettings(
+          algorithm,
+          document.getElementById('timeQuantum').value,
+          document.getElementById('contextSwitchEnabled').checked,
+          document.getElementById('contextSwitchTime').value
+        );
+      },
+      update: function () {
+        var algorithm = this.get();
+        document.getElementById('quantumSetting').classList.toggle('hidden', algorithm !== 'roundRobin');
+        document.getElementById('mlfqHint').classList.toggle('hidden', algorithm !== 'mlfq');
+        var explanations = {
+          preemptive: ['How preemptive priority works', 'The CPU selects the ready process with the smallest priority number. It checks again at each arrival, allowing a higher-priority process to preempt the current one.'],
+          nonPreemptive: ['How non-preemptive priority works', 'The CPU selects the ready process with the smallest priority number and lets it complete before choosing another process.'],
+          fcfs: ['How FCFS works', 'First Come First Serve runs processes in arrival order. It is non-preemptive, so a running process keeps the CPU until completion.'],
+          sjf: ['How SJF works', 'Shortest Job First chooses the ready process with the smallest burst time. The selected process then runs to completion.'],
+          srtf: ['How SRTF works', 'Shortest Remaining Time First is preemptive SJF: when a process arrives, the scheduler compares its burst with the running process’s remaining time and may preempt.'],
+          hrrn: ['How HRRN works', 'At each dispatch, Highest Response Ratio Next selects the largest (waiting time + burst time) / burst time. Long-waiting jobs gradually gain priority.'],
+          mlfq: ['How MLFQ works', 'New processes enter the highest-priority queue. Each level uses round robin; a process that consumes its whole quantum is demoted. New arrivals preempt lower-level work.'],
+          roundRobin: ['How Round Robin works', 'Each ready process receives up to one time quantum. Arrivals during a slice join the back of the queue before an unfinished process is re-queued.']
+        };
+        document.getElementById('explanationTitle').textContent = explanations[algorithm][0];
+        document.getElementById('selectedAlgorithmExplanation').textContent = explanations[algorithm][1];
+      }
+    };
+    function compareFor(kind, first, second) {
+      if (kind === 'preemptive' || kind === 'nonPreemptive') {
+        return first.priority - second.priority || first.arrival - second.arrival || first.order - second.order;
+      }
+      if (kind === 'sjf' || kind === 'srtf') return first.remaining - second.remaining || first.arrival - second.arrival || first.order - second.order;
+      return first.arrival - second.arrival || first.order - second.order;
+    }
+    simulator.runMlfqScheduler = function (input, options) {
+      var quanta = [2, 4, 8];
+      var processes = input.map(function (process, index) {
+        return Object.assign({}, process, {
+          order: index, remaining: process.burst, firstStart: null, completion: null,
+          level: 0, sliceRemaining: null
+        });
+      });
+      var queues = [[], [], []];
+      var timeline = [];
+      var trace = [];
+      var time = 0;
+      var completed = 0;
+      var switches = 0;
+      var admitted = new Set();
+      var previousProcess = null;
+      function admitArrivals() {
+        processes.filter(function (process) {
+          return !admitted.has(process.order) && process.arrival <= time;
+        }).sort(function (first, second) {
+          return first.arrival - second.arrival || first.order - second.order;
+        }).forEach(function (process) {
+          admitted.add(process.order);
+          queues[0].push(process);
+        });
+      }
+      function nextReadyLevel() {
+        return queues.findIndex(function (queue) { return queue.length > 0; });
+      }
+      function takeNext() {
+        var level = nextReadyLevel();
+        return level < 0 ? null : queues[level].shift();
+      }
+      function snapshot() {
+        return queues.reduce(function (items, queue, level) {
+          queue.forEach(function (process) {
+            items.push({ id: process.id, priority: process.priority, remaining: process.remaining, level: level });
+          });
+          return items;
+        }, []);
+      }
+      function addBlock(type, id, start, end, order, level) {
+        if (end <= start) return;
+        var previous = timeline[timeline.length - 1];
+        if (type === 'process' && previous && previous.type === 'process' && previous.id === id &&
+            previous.queueLevel === level && previous.end === start) {
+          previous.end = end;
+          return;
+        }
+        var block = { type: type, id: id, start: start, end: end, order: order };
+        if (level !== undefined) block.queueLevel = level;
+        timeline.push(block);
+      }
+      admitArrivals();
+      while (completed < processes.length) {
+        var level = nextReadyLevel();
+        if (level < 0) {
+          var nextArrival = Math.min.apply(null, processes.filter(function (process) {
+            return !admitted.has(process.order);
+          }).map(function (process) { return process.arrival; }));
+          if (!Number.isFinite(nextArrival)) throw new Error('MLFQ could not find a ready process or a future arrival.');
+          addBlock('idle', 'IDLE', time, nextArrival);
+          time = nextArrival;
+          previousProcess = null;
+          admitArrivals();
+        }
+        var current = takeNext();
+        if (current.sliceRemaining === null) current.sliceRemaining = quanta[current.level];
+        if (previousProcess && previousProcess.order !== current.order) {
+          switches += 1;
+          if (options.contextTime > 0) {
+            addBlock('switch', 'CS', time, time + options.contextTime);
+            time += options.contextTime;
+            admitArrivals();
+          }
+          queues[current.level].unshift(current);
+          current = takeNext();
+          if (current.sliceRemaining === null) current.sliceRemaining = quanta[current.level];
+        }
+        if (current.firstStart === null) current.firstStart = time;
+        trace.push({
+          time: time, running: current.id, priority: current.priority, level: current.level,
+          queue: snapshot(), kind: 'mlfq'
+        });
+        var duration = Math.min(current.remaining, current.sliceRemaining);
+        if (current.level > 0) {
+          var upcoming = processes.filter(function (process) {
+            return !admitted.has(process.order);
+          }).reduce(function (nearest, process) {
+            return Math.min(nearest, process.arrival);
+          }, Infinity);
+          if (upcoming < time + duration) duration = upcoming - time;
+        }
+        if (!(duration > 0)) throw new Error('MLFQ encountered an invalid scheduling interval.');
+        var start = time;
+        time += duration;
+        current.remaining -= duration;
+        current.sliceRemaining -= duration;
+        addBlock('process', current.id, start, time, current.order, current.level);
+        admitArrivals();
+        if (current.remaining === 0) {
+          current.completion = time;
+          completed += 1;
+        } else if (current.sliceRemaining === 0) {
+          current.level = Math.min(current.level + 1, queues.length - 1);
+          current.sliceRemaining = null;
+          queues[current.level].push(current);
+        } else {
+          queues[current.level].unshift(current);
+        }
+        previousProcess = current;
+      }
+      var result = simulator.calculateMetrics(processes, timeline, switches);
+      result.timeline = timeline;
+      result.trace = trace;
+      result.queueQuanta = quanta;
+      return result;
+    };
+    simulator.runScheduler = function (input, kind, options) {
+      var processes = input.map(function (process, index) {
+        return Object.assign({}, process, { order: index, remaining: process.burst, firstStart: null, completion: null });
+      });
+      var timeline = [];
+      var ready = [];
+      var trace = [];
+      var time = 0;
+      var completed = 0;
+      var admitted = new Set();
+      var previousProcess = null;
+      var switches = 0;
+      var roundRobin = kind === 'roundRobin';
+      function admitArrivals() {
+        processes.filter(function (process) {
+          return !admitted.has(process.order) && process.arrival <= time;
+        }).sort(function (first, second) {
+          return first.arrival - second.arrival || first.order - second.order;
+        }).forEach(function (process) {
+          admitted.add(process.order);
+          ready.push(process);
+        });
+      }
+      function sortReady() {
+        if (kind === 'hrrn') {
+          ready.sort(function (first, second) {
+            var firstRatio = (time - first.arrival + first.burst) / first.burst;
+            var secondRatio = (time - second.arrival + second.burst) / second.burst;
+            return secondRatio - firstRatio || first.arrival - second.arrival || first.order - second.order;
+          });
+        } else if (!roundRobin) ready.sort(function (first, second) { return compareFor(kind, first, second); });
+      }
+      function takeNext() {
+        sortReady();
+        return ready.shift();
+      }
+      function addBlock(type, id, start, end, order, queueLevel) {
+        if (end <= start) return;
+        var previous = timeline[timeline.length - 1];
+        if (type === 'process' && previous && previous.type === 'process' && previous.id === id &&
+            previous.queueLevel === queueLevel && previous.end === start) {
+          previous.end = end;
+          return;
+        }
+        var block = { type: type, id: id, start: start, end: end, order: order };
+        if (queueLevel !== undefined) block.queueLevel = queueLevel;
+        timeline.push(block);
+      }
+      function queueSnapshot() {
+        sortReady();
+        return ready.map(function (process) {
+          return { id: process.id, priority: process.priority, remaining: process.remaining };
+        });
+      }
+      admitArrivals();
+      while (completed < processes.length) {
+        if (!ready.length) {
+          var nextArrival = Math.min.apply(null, processes.filter(function (process) {
+            return process.remaining > 0 && !admitted.has(process.order);
+          }).map(function (process) { return process.arrival; }));
+          if (!Number.isFinite(nextArrival)) throw new Error('Scheduler could not find a ready process or a future arrival.');
+          addBlock('idle', 'IDLE', time, nextArrival);
+          time = nextArrival;
+          previousProcess = null;
+          admitArrivals();
+        }
+        var current = takeNext();
+        var paidSwitch = false;
+        if (previousProcess && previousProcess.order !== current.order) {
+          switches += 1;
+          if (options.contextTime > 0) {
+            addBlock('switch', 'CS', time, time + options.contextTime);
+            time += options.contextTime;
+            admitArrivals();
+          }
+          paidSwitch = true;
+          if (!roundRobin) {
+            ready.push(current);
+            current = takeNext();
+          }
+        }
+        if (current.firstStart === null) current.firstStart = time;
+        trace.push({
+          time: time, running: current.id, priority: current.priority,
+          queue: queueSnapshot(), kind: kind
+        });
+        var duration = kind === 'preemptive' || kind === 'srtf' ? 1 :
+          (roundRobin ? Math.min(options.quantum, current.remaining) : current.remaining);
+        var start = time;
+        time += duration;
+        current.remaining -= duration;
+        addBlock('process', current.id, start, time, current.order);
+        admitArrivals();
+        if (current.remaining === 0) {
+          current.completion = time;
+          completed += 1;
+        } else {
+          ready.push(current);
+        }
+        previousProcess = current;
+        if (paidSwitch && !roundRobin) sortReady();
+      }
+      var result = simulator.calculateMetrics(processes, timeline, switches);
+      result.timeline = timeline;
+      result.trace = trace;
+      return result;
+    };
+    Object.keys(simulator.algorithms).forEach(function (key) {
+      simulator.algorithms[key].run = function (processes, options) {
+        return key === 'mlfq'
+          ? simulator.runMlfqScheduler(processes, options)
+          : simulator.runScheduler(processes, key, options);
+      };
+    });
+    simulator.renderGantt = function (container, timeline, currentBlock) {
+      if (!timeline.length) {
+        container.innerHTML = '<div class="empty-state">No CPU activity to display.</div>';
+        return;
+      }
+      var blocks = timeline.map(function (block, index) {
+        var className = 'gantt-block ' + block.type + (index === currentBlock ? ' is-current' : '');
+        var color = block.type === 'process' ? 'background:' + simulator.colors[block.order % simulator.colors.length] + ';' : '';
+        var detail = block.queueLevel === undefined ? block.start + '–' + block.end :
+          'Q' + (block.queueLevel + 1) + ' · ' + block.start + '-' + block.end;
+        return '<div class="' + className + '" data-block-index="' + index + '" style="--duration:' +
+          (block.end - block.start) + ';' + color + '" title="' + simulator.escapeHtml(block.id) + ': ' +
+          block.start + ' to ' + block.end + (block.queueLevel === undefined ? '' : ' · queue ' + (block.queueLevel + 1)) +
+          '"><span>' + simulator.escapeHtml(block.id) + '</span><small>' + detail + '</small></div>';
+      }).join('');
+      var ticks = timeline.map(function (block, index) {
+        return '<div class="gantt-tick" style="--duration:' + (block.end - block.start) + '">' +
+          block.start + (index === timeline.length - 1 ? '<span class="tick-end">' + block.end + '</span>' : '') + '</div>';
+      }).join('');
+      container.innerHTML = '<div class="gantt-track">' + blocks + '</div><div class="gantt-ticks">' + ticks + '</div>';
+    };
+    simulator.runToken = 0;
+    simulator.playReadyQueue = function (trace, token) {
+      var current = document.getElementById('readyQueueCurrent');
+      var list = document.getElementById('readyQueueTrace');
+      list.innerHTML = '';
+      if (!trace.length) {
+        current.textContent = 'No scheduling decisions to display.';
+        return Promise.resolve();
+      }
+      var index = 0;
+      return new Promise(function (resolve) {
+        function advance() {
+          if (token !== simulator.runToken) { resolve(); return; }
+          var step = trace[index];
+          var queueLabels = step.queue.length ? step.queue.map(function (process) {
+            if (step.kind === 'mlfq') return process.id + ' (Q' + (process.level + 1) + ')';
+            return process.id + (step.kind === 'preemptive' || step.kind === 'nonPreemptive' ? ' (priority ' + process.priority + ')' : '');
+          }) : [];
+          var queueText = queueLabels.length ? queueLabels.join('  ›  ') : 'empty';
+          current.innerHTML = '<strong>t=' + step.time + '</strong> · Running <strong>' +
+            simulator.escapeHtml(step.running) + (step.kind === 'mlfq' ? ' (Q' + (step.level + 1) + ')' : '') + '</strong> · Ready: ' +
+            (queueLabels.length ? queueLabels.map(simulator.escapeHtml).join('  ›  ') : 'empty');
+          var item = document.createElement('li');
+          item.textContent = 't=' + step.time + ': running ' + step.running +
+            ((step.kind === 'preemptive' || step.kind === 'nonPreemptive') ? ' (priority ' + step.priority + ')' : '') +
+            (step.kind === 'mlfq' ? ' (queue ' + (step.level + 1) + ')' : '') +
+            ' · queue [' + (queueText === 'empty' ? '' : queueText) + ']';
+          list.appendChild(item);
+          index += 1;
+          if (index < trace.length) window.setTimeout(advance, 140);
+          else {
+            window.setTimeout(function () {
+              if (token === simulator.runToken) current.textContent = 'Simulation complete · ' + trace.length + ' dispatch decision' + (trace.length === 1 ? '' : 's') + ' shown.';
+              resolve();
+            }, 140);
+          }
+        }
+        advance();
+      });
+    };
+    simulator.renderMetrics = function (result) {
+      var byId = function (id) { return document.getElementById(id); };
+      byId('averageWaiting').textContent = simulator.formatNumber(result.averages.waiting);
+      byId('averageTurnaround').textContent = simulator.formatNumber(result.averages.turnaround);
+      byId('averageResponse').textContent = simulator.formatNumber(result.averages.response);
+      byId('cpuUtilization').textContent = simulator.formatNumber(result.utilization) + '%';
+      byId('busyIdleLabel').textContent = 'Total simulation time ' + result.totalTime;
+      byId('cpuBusyTime').textContent = String(result.busyTime);
+      byId('cpuIdleTime').textContent = String(result.idleTime);
+      byId('throughput').textContent = simulator.formatNumber(result.throughput);
+      byId('contextSwitchCount').textContent = String(result.contextSwitches);
+      byId('averagesNote').textContent = 'Average WT: ' + simulator.formatNumber(result.averages.waiting) +
+        ' · Average TAT: ' + simulator.formatNumber(result.averages.turnaround) +
+        ' · Average RT: ' + simulator.formatNumber(result.averages.response);
+      byId('performanceTableBody').innerHTML = result.metrics.map(function (process) {
+        return '<tr><td>' + simulator.escapeHtml(process.id) + '</td><td>' + process.arrival +
+          '</td><td>' + process.burst + '</td><td>' + process.priority + '</td><td>' + process.completion +
+          '</td><td>' + process.turnaround + '</td><td>' + process.waiting + '</td><td>' + process.response +
+          '</td><td>' + simulator.formatNumber(process.turnaround / process.burst) + '</td></tr>';
+      }).join('');
+      var longestWait = result.metrics.reduce(function (longest, process) {
+        return process.waiting > longest.waiting ? process : longest;
+      }, result.metrics[0]);
+      var bestResponse = result.metrics.reduce(function (best, process) {
+        return process.response < best.response ? process : best;
+      }, result.metrics[0]);
+      var insights = [
+        ['Longest wait', simulator.escapeHtml(longestWait.id) + ' waited ' + longestWait.waiting + ' time units', 'WAITING TIME'],
+        ['Quickest first response', simulator.escapeHtml(bestResponse.id) + ' responded in ' + bestResponse.response + ' time units', 'RESPONSE TIME'],
+        ['Context-switch overhead', simulator.formatNumber(result.switchOverhead) + '% of elapsed time', result.switchTime + ' switch time units'],
+        ['Workload efficiency', simulator.formatNumber(result.utilization) + '% productive CPU time', result.contextSwitches + ' context switches']
+      ];
+      byId('insightGrid').innerHTML = insights.map(function (insight) {
+        return '<article class="insight-card"><span>' + insight[2] + '</span><strong>' + insight[0] +
+          '</strong><small>' + insight[1] + '</small></article>';
+      }).join('');
+    };
+    simulator.renderComparison = function (results) {
+      var section = document.getElementById('comparisonSection');
+      section.classList.remove('hidden');
+      document.getElementById('comparisonCharts').innerHTML = Object.keys(simulator.algorithms).map(function (key, index) {
+        return '<article class="panel comparison-card"><p class="section-kicker">Algorithm ' + (index + 1) +
+          '</p><h3>' + simulator.algorithms[key].label + '</h3><div class="gantt-container" id="comparisonGantt' + index + '"></div></article>';
+      }).join('');
+      Object.keys(simulator.algorithms).forEach(function (key, index) {
+        simulator.renderGantt(document.getElementById('comparisonGantt' + index), results[key].timeline);
+      });
+      document.getElementById('comparisonTableBody').innerHTML = Object.keys(simulator.algorithms).map(function (key) {
+        var result = results[key];
+        return '<tr><td>' + simulator.algorithms[key].label + '</td><td>' + simulator.formatNumber(result.averages.waiting) +
+          '</td><td>' + simulator.formatNumber(result.averages.turnaround) + '</td><td>' + simulator.formatNumber(result.averages.response) +
+          '</td><td>' + simulator.formatNumber(result.utilization) + '%</td><td>' +
+          simulator.formatNumber(result.switchOverhead) + '%</td><td>' + result.idleTime +
+          '</td><td>' + simulator.formatNumber(result.throughput) + '</td><td>' + result.contextSwitches + '</td></tr>';
+      }).join('');
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  })(window.CPUSim = window.CPUSim || {});
+  </script>
+  <script>
+  (function (simulator) {
+    var names = simulator.algorithms;
+    var runButton = document.getElementById('runButton');
+    var latestResult = null;
+    var latestAlgorithm = '';
+    var playbackIndex = -1;
+    var playbackTimer = null;
+    var workloads = {
+      priority: simulator.exampleProcesses,
+      idle: [
+        { id: 'P1', arrival: 2, burst: 4, priority: 2 },
+        { id: 'P2', arrival: 9, burst: 2, priority: 1 },
+        { id: 'P3', arrival: 10, burst: 1, priority: 3 }
+      ],
+      roundRobin: [
+        { id: 'P1', arrival: 0, burst: 7, priority: 2 },
+        { id: 'P2', arrival: 1, burst: 4, priority: 1 },
+        { id: 'P3', arrival: 2, burst: 5, priority: 3 }
+      ]
+    };
+    function showError(error) {
+      document.getElementById('validationMessage').textContent = error.message;
+    }
+    function clearError() {
+      document.getElementById('validationMessage').textContent = '';
+    }
+    function loadWorkload(name) {
+      simulator.processInput.load(workloads[name]);
+      document.querySelectorAll('.scenario-chip[data-workload]').forEach(function (button) {
+        var active = button.dataset.workload === name;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      clearError();
+    }
+    function stopPlayback() {
+      if (playbackTimer !== null) window.clearInterval(playbackTimer);
+      playbackTimer = null;
+      document.getElementById('playPauseButton').textContent = '▶';
+      document.getElementById('playPauseButton').setAttribute('aria-label', 'Play schedule');
+    }
+    function showPlaybackBlock(index) {
+      if (!latestResult || !latestResult.timeline.length) return;
+      playbackIndex = Math.max(0, Math.min(index, latestResult.timeline.length - 1));
+      var block = latestResult.timeline[playbackIndex];
+      var slider = document.getElementById('timelineSlider');
+      slider.value = String(playbackIndex);
+      simulator.renderGantt(document.getElementById('ganttContainer'), latestResult.timeline, playbackIndex);
+      document.getElementById('playbackTime').textContent = 't = ' + block.start + '–' + block.end;
+      document.getElementById('playbackStatus').textContent =
+        'Dispatch ' + (playbackIndex + 1) + ' of ' + latestResult.timeline.length + ' · ' + block.id +
+        (block.type === 'process' ? ' runs' : block.type === 'idle' ? ' · CPU idle' : ' · context switch');
+      document.getElementById('previousBlockButton').disabled = playbackIndex === 0;
+      document.getElementById('nextBlockButton').disabled = playbackIndex === latestResult.timeline.length - 1;
+    }
+    function downloadFile(filename, content, mimeType) {
+      var blob = new Blob([content], { type: mimeType });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+    function collectInputs(algorithm) {
+      clearError();
+      return {
+        processes: simulator.processInput.read(),
+        options: simulator.algorithmSelector.settings(algorithm)
+      };
+    }
+    function showResults(result, algorithm) {
+      var section = document.getElementById('resultsSection');
+      section.classList.remove('hidden');
+      latestResult = result;
+      latestAlgorithm = algorithm;
+      stopPlayback();
+      document.getElementById('resultsTitle').textContent = names[algorithm].label + ' results';
+      document.getElementById('algorithmBadge').textContent = names[algorithm].label;
+      document.getElementById('chartTitle').textContent = names[algorithm].label + ' timeline';
+      var slider = document.getElementById('timelineSlider');
+      slider.max = String(Math.max(0, result.timeline.length - 1));
+      slider.disabled = !result.timeline.length;
+      document.getElementById('playPauseButton').disabled = !result.timeline.length;
+      showPlaybackBlock(0);
+      simulator.renderMetrics(result);
+      document.getElementById('comparisonSection').classList.add('hidden');
+      var token = ++simulator.runToken;
+      runButton.disabled = true;
+      simulator.playReadyQueue(result.trace, token).then(function () {
+        if (token === simulator.runToken) runButton.disabled = false;
+      });
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function runSelected() {
+      simulator.runToken += 1;
+      runButton.disabled = false;
+      try {
+        var algorithm = simulator.algorithmSelector.get();
+        var input = collectInputs(algorithm);
+        showResults(names[algorithm].run(input.processes, input.options), algorithm);
+      } catch (error) {
+        showError(error);
+      }
+    }
+    function runComparison() {
+      simulator.runToken += 1;
+      runButton.disabled = false;
+      try {
+        var input = collectInputs('roundRobin');
+        var results = {};
+        Object.keys(names).forEach(function (key) {
+          results[key] = names[key].run(input.processes, input.options);
+        });
+        simulator.renderComparison(results);
+      } catch (error) {
+        showError(error);
+      }
+    }
+    function resetResults() {
+      simulator.runToken += 1;
+      runButton.disabled = false;
+      latestResult = null;
+      latestAlgorithm = '';
+      stopPlayback();
+      playbackIndex = -1;
+      document.getElementById('resultsTitle').textContent = 'Simulation results';
+      document.getElementById('algorithmBadge').textContent = 'Ready';
+      document.getElementById('chartTitle').textContent = 'CPU timeline';
+      document.getElementById('ganttContainer').innerHTML = '<div class="empty-state">Run a simulation to see the CPU timeline.</div>';
+      document.getElementById('timelineSlider').value = '0';
+      document.getElementById('timelineSlider').max = '0';
+      document.getElementById('timelineSlider').disabled = true;
+      document.getElementById('playPauseButton').disabled = true;
+      document.getElementById('previousBlockButton').disabled = true;
+      document.getElementById('nextBlockButton').disabled = true;
+      document.getElementById('playbackTime').textContent = 't = —';
+      document.getElementById('playbackStatus').textContent = 'Run a schedule to step through dispatches.';
+      document.getElementById('readyQueueCurrent').textContent = 'Run the simulation to see ready-queue decisions.';
+      document.getElementById('readyQueueTrace').innerHTML = '';
+      document.getElementById('performanceTableBody').innerHTML = '';
+      document.getElementById('averagesNote').textContent = '';
+      ['averageWaiting', 'averageTurnaround', 'averageResponse', 'cpuUtilization', 'throughput', 'contextSwitchCount'].forEach(function (id) {
+        document.getElementById(id).textContent = '—';
+      });
+      document.getElementById('busyIdleLabel').textContent = 'Total simulation time —';
+      document.getElementById('cpuBusyTime').textContent = '—';
+      document.getElementById('cpuIdleTime').textContent = '—';
+      document.getElementById('insightGrid').innerHTML = '';
+      document.getElementById('resultsSection').classList.add('hidden');
+      document.getElementById('comparisonSection').classList.add('hidden');
+      clearError();
+    }
+    document.getElementById('addProcessButton').addEventListener('click', function () { simulator.processInput.addRow(); });
+    document.getElementById('removeProcessButton').addEventListener('click', function () {
+      var row = simulator.processInput.rows.pop();
+      if (row) row.remove();
+      simulator.processInput.updateCount();
+    });
+    document.getElementById('clearAllButton').addEventListener('click', function () {
+      simulator.processInput.clear();
+      document.querySelectorAll('.scenario-chip[data-workload]').forEach(function (button) {
+        button.classList.remove('is-active');
+        button.setAttribute('aria-pressed', 'false');
+      });
+      clearError();
+    });
+    document.querySelectorAll('.scenario-chip[data-workload]').forEach(function (button) {
+      button.addEventListener('click', function () { loadWorkload(button.dataset.workload); });
+    });
+    document.getElementById('processTableBody').addEventListener('input', function () {
+      document.querySelectorAll('.scenario-chip[data-workload]').forEach(function (button) {
+        button.classList.remove('is-active');
+        button.setAttribute('aria-pressed', 'false');
+      });
+    });
+    document.getElementById('runButton').addEventListener('click', runSelected);
+    document.getElementById('compareButton').addEventListener('click', runComparison);
+    document.getElementById('resetButton').addEventListener('click', resetResults);
+    document.getElementById('closeComparisonButton').addEventListener('click', function () {
+      document.getElementById('comparisonSection').classList.add('hidden');
+    });
+    document.getElementById('algorithmSelect').addEventListener('change', simulator.algorithmSelector.update.bind(simulator.algorithmSelector));
+    document.getElementById('contextSwitchEnabled').addEventListener('change', function (event) {
+      document.getElementById('contextSwitchSetting').classList.toggle('hidden', !event.target.checked);
+    });
+    document.getElementById('exportResultsButton').addEventListener('click', function () {
+      if (!latestResult) return;
+      function csvCell(value) {
+        return '"' + String(value).replace(/"/g, '""') + '"';
+      }
+      var rows = [
+        ['Process ID', 'Arrival time', 'Burst time', 'Priority', 'Completion time', 'Turnaround time', 'Waiting time', 'Response time', 'Response ratio']
+      ];
+      latestResult.metrics.forEach(function (process) {
+        rows.push([process.id, process.arrival, process.burst, process.priority, process.completion, process.turnaround, process.waiting, process.response, process.turnaround / process.burst]);
+      });
+      rows.push([]);
+      rows.push(['Schedule summary', 'Value']);
+      rows.push(['Algorithm', names[latestAlgorithm].label]);
+      rows.push(['Average waiting time', latestResult.averages.waiting]);
+      rows.push(['Average turnaround time', latestResult.averages.turnaround]);
+      rows.push(['Average response time', latestResult.averages.response]);
+      rows.push(['CPU utilization (%)', latestResult.utilization]);
+      rows.push(['CPU busy time', latestResult.busyTime]);
+      rows.push(['CPU idle time', latestResult.idleTime]);
+      rows.push(['Throughput', latestResult.throughput]);
+      rows.push(['Context switches', latestResult.contextSwitches]);
+      rows.push(['Context-switch time', latestResult.switchTime]);
+      rows.push(['Context-switch overhead (%)', latestResult.switchOverhead]);
+      rows.push([]);
+      rows.push(['CPU timeline']);
+      rows.push(['Block type', 'Process ID', 'Start', 'End', 'MLFQ level']);
+      latestResult.timeline.forEach(function (block) {
+        rows.push([block.type, block.id, block.start, block.end, block.queueLevel === undefined ? '' : block.queueLevel + 1]);
+      });
+      var csv = '\uFEFF' + rows.map(function (row) { return row.map(csvCell).join(','); }).join('\r\n');
+      downloadFile('kernel-lab-' + latestAlgorithm + '-' + new Date().toISOString().slice(0, 10) + '.csv', csv, 'text/csv;charset=utf-8');
+    });
+    document.getElementById('previousBlockButton').addEventListener('click', function () {
+      stopPlayback();
+      showPlaybackBlock(playbackIndex - 1);
+    });
+    document.getElementById('nextBlockButton').addEventListener('click', function () {
+      stopPlayback();
+      showPlaybackBlock(playbackIndex + 1);
+    });
+    document.getElementById('timelineSlider').addEventListener('input', function (event) {
+      stopPlayback();
+      showPlaybackBlock(Number(event.target.value));
+    });
+    document.getElementById('playPauseButton').addEventListener('click', function () {
+      if (!latestResult) return;
+      if (playbackTimer !== null) {
+        stopPlayback();
+        document.getElementById('playbackStatus').textContent = 'Playback paused.';
+        return;
+      }
+      if (playbackIndex >= latestResult.timeline.length - 1) showPlaybackBlock(0);
+      var button = document.getElementById('playPauseButton');
+      button.textContent = 'Ⅱ';
+      button.setAttribute('aria-label', 'Pause schedule');
+      playbackTimer = window.setInterval(function () {
+        if (playbackIndex >= latestResult.timeline.length - 1) {
+          stopPlayback();
+          document.getElementById('playbackStatus').textContent = 'Schedule playback complete.';
+          return;
+        }
+        showPlaybackBlock(playbackIndex + 1);
+      }, Number(document.getElementById('playbackSpeed').value));
+    });
+    simulator.processInput.load(simulator.exampleProcesses);
+    simulator.algorithmSelector.update();
+    document.getElementById('contextSwitchSetting').classList.add('hidden');
+  })(window.CPUSim = window.CPUSim || {});
+  </script>
+</body>
+</html>
